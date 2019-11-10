@@ -19,12 +19,19 @@ class RandomForest:
         self.consequent = ""
         self.possible_values_dict = {}
         self.desired_state = 1
+        self.rules_frame = pd.DataFrame()
 
     def read_csv(self, file: str, **kwargs):
         """
         Load data from csv.
         """
         self.data = pd.read_csv(file, **kwargs)
+
+    def load_pandas(self, data_frame: pd.DataFrame):
+        """
+        Load data from pandas dataframe.
+        """
+        self.data = data_frame
 
     def prepare_data(self, antecedents: List[str], consequent: str, desired_state: str):
         """
@@ -54,7 +61,7 @@ class RandomForest:
         return rf
 
     @staticmethod
-    def get_rules(rf: RandomForestRegressor):
+    def get_trees(rf: RandomForestRegressor):
         trees = {}
         for tree_idx, est in enumerate(rf.estimators_):
             trees[tree_idx] = {}
@@ -178,4 +185,30 @@ class RandomForest:
                 confidence = None
             supp_conf.append([support, confidence])
         return supp_conf
-    
+
+    def set_frame_supp_conf(self, rules_frame, supp_conf):
+        support = []
+        confidence = []
+        for values in supp_conf:
+            support.append(values[0])
+            confidence.append(values[1])
+        dataSupport = pd.DataFrame({'support': support})
+        dataConfidence = pd.DataFrame({'confidence': confidence})
+        rules_frame = rules_frame.join(dataSupport)
+        rules_frame = rules_frame.join(dataConfidence)
+        self.rules_frame = rules_frame
+
+    def fit(self, antecedents: List[str], consequent: str, desired_state: str, n_estimators: int=30, **kwargs):
+        self.prepare_data(antecedents, consequent, desired_state)
+        self.set_dummies()
+        rf = self.get_random_forest(n_estimators, **kwargs)
+        trees = self.get_trees(rf)
+        tree_rules = self.get_tree_rules(trees)
+        no_dummies_rules = self.get_no_dummies_rules(tree_rules)
+        divided_rules = self.get_divided_rules(no_dummies_rules)
+        rules_frame = self.get_rules_frame(divided_rules)
+        supp_conf = self.get_supp_conf(rules_frame, divided_rules)
+        self.set_frame_supp_conf(rules_frame, supp_conf)
+
+    def get_frame(self):
+        return self.rules_frame
